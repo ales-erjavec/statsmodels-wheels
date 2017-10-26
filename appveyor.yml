@@ -1,0 +1,91 @@
+environment:
+  global:
+    REPO: https://github.com/statsmodels/statsmodels.git
+    REPO_DIR: statsmodels
+    PACKAGE_NAME: statsmodels
+    BUILD_COMMIT: "v0.8.0"
+    BUILD_DEPENDS: "--only-binary numpy,cython numpy~=1.12.0 setuptools cython"
+    TEST_DEPENDS: "--only-binary numpy,scipy,pandas numpy~=1.13.0 scipy pytest~=3.0 nose pandas"
+
+  matrix:
+    - PYTHON: "C:\\Python27"
+      PYTHON_VERSION: "2.7"
+      PYTHON_ARCH: "32"
+    - PYTHON: "C:\\Python27-x64"
+      PYTHON_VERSION: "2.7"
+      PYTHON_ARCH: "64"
+    - PYTHON: "C:\\Python34"
+      PYTHON_VERSION: "3.4"
+      PYTHON_ARCH: "32"
+    - PYTHON: "C:\\Python34-x64"
+      PYTHON_VERSION: "3.4"
+      PYTHON_ARCH: "64"
+    - PYTHON: "C:\\Python35"
+      PYTHON_VERSION: "3.5"
+      PYTHON_ARCH: "32"
+    - PYTHON: "C:\\Python35-x64"
+      PYTHON_VERSION: "3.5"
+      PYTHON_ARCH: "64"
+    - PYTHON: "C:\\Python36"
+      PYTHON_VERSION: "3.6"
+      PYTHON_ARCH: "32"
+    - PYTHON: "C:\\Python36-x64"
+      PYTHON_VERSION: "3.6"
+      PYTHON_ARCH: "64"
+
+
+# We always use a 64-bit machine, but can build x86 distributions
+# with the TARGET_ARCH variable.
+platform:
+    - x64
+
+matrix:
+    fast_finish: true
+
+install:
+    # Install miniconda and fix headers
+    #- ps: .\\ci\\appveyor\\install.ps1
+    #- ps: .\\ci\\appveyor\\missing-headers.ps1
+    - set "PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%"
+    #- conda info
+    - python -m ensurepip
+    - python -m pip install pip~=9.0.1 wheel~=0.29.0
+    # Check that we have the expected version and architecture for Python
+    - python --version
+    - python -c "import struct; print(struct.calcsize('P') * 8)"
+    # Install build requirements
+    - pip install %BUILD_DEPENDS%
+    - python -m pip list --format=freeze
+
+    - git clone "%REPO%"
+
+
+build_script:
+    # build wheel:
+    - cd %REPO_DIR%
+    - git checkout %BUILD_COMMIT%
+    - python setup.py bdist_wheel
+    - ls dist/*
+
+test_script:
+    # create test env
+    - if %PYTHON_VERSION% == 2.7 ( python -m pip install virtualenv )
+    - if %PYTHON_VERSION% == 2.7 ( python -m virtualenv --python %PYTHON%\python.exe .test )
+    - if %PYTHON_VERSION% gtr 2.7 ( python -m venv .test )
+    - .test\Scripts\activate
+    - cd .test
+    - python -m pip install %TEST_DEPENDS%
+    - python -m pip list --format=freeze
+
+    # - conda create --yes -n test_env python=%PYTHON_VERSION% %TEST_DEPENDS%
+    # - activate test_env
+
+    # install from wheel
+    - python -m pip install --no-index --no-deps --find-links ../dist/ %PACKAGE_NAME%
+    - python -m pip install %PACKAGE_NAME%
+
+    # run tests from install wheel
+    - python -c"from statsmodels import *"
+    - nosetests statsmodels
+ 
+
